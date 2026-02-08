@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# QGIS
+*.qgz
+*.qgs
+*.qgs~
+*.gpkg-shm
+*.gpkg-wal
+
+# User data
+elfadily_topotools/user_templates.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build/dist
+dist/
+build/
+*.zip
+
+# Documentation build
+docs/_build/

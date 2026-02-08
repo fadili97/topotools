@@ -1,0 +1,225 @@
+name: Release QGIS Plugin (Private Repo)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history for changelog
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create plugin package
+        run: |
+          # Create a clean copy of the plugin
+          mkdir -p dist
+          cp -r elfadily_topotools dist/
+
+          # Remove unnecessary files from the package
+          cd dist/elfadily_topotools
+          find . -name "*.pyc" -delete
+          find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          find . -name ".git*" -delete
+          rm -f user_templates.json  # Don't include user data
+          cd ..
+
+          # Create zip file
+          zip -r elfadily_topotools.${{ steps.get_version.outputs.version }}.zip elfadily_topotools
+          mv elfadily_topotools.${{ steps.get_version.outputs.version }}.zip ../
+          cd ..
+
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          # Get commits since last tag
+          PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s" ${{ steps.get_version.outputs.tag }})
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s" ${PREVIOUS_TAG}..${{ steps.get_version.outputs.tag }})
+          fi
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: elfadily_topotools.${{ steps.get_version.outputs.version }}.zip
+          body: |
+            ## ELFADILY TopoTools v${{ steps.get_version.outputs.version }}
+
+            ### 📦 Installation
+            1. Télécharger `elfadily_topotools.${{ steps.get_version.outputs.version }}.zip`
+            2. QGIS → Extensions → Gérer → Installer depuis un ZIP
+
+            ### 🔄 Mise à jour automatique
+            Ajoutez le dépôt dans QGIS (URL dans la documentation)
+
+            ### 📝 Changements
+            ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate plugins.xml
+        id: generate_xml
+        run: |
+          python - << 'EOF'
+          import os
+          import xml.etree.ElementTree as ET
+          from xml.dom import minidom
+          from datetime import datetime
+          import re
+
+          # Read metadata.txt
+          metadata = {}
+          with open('elfadily_topotools/metadata.txt', 'r', encoding='utf-8') as f:
+              current_section = None
+              for line in f:
+                  line = line.strip()
+                  if line.startswith('[') and line.endswith(']'):
+                      current_section = line[1:-1]
+                  elif '=' in line and current_section == 'general':
+                      key, value = line.split('=', 1)
+                      metadata[key.strip()] = value.strip()
+
+          # Get version from tag
+          version = os.environ.get('VERSION', '1.0.0')
+          tag = os.environ.get('TAG', 'v1.0.0')
+          repo = metadata.get('repository', 'https://github.com/fadili97/topotools')
+
+          # Extract repository info from URL
+          repo_match = re.search(r'github\.com/([^/]+)/([^/]+)', repo)
+          if repo_match:
+              repo_owner, repo_name = repo_match.groups()
+          else:
+              repo_owner, repo_name = 'fadili97', 'topotools'
+
+          # Create XML
+          root = ET.Element('plugins')
+          plugin = ET.SubElement(root, 'pyqgis_plugin', {
+              'name': metadata.get('name', 'ELFADILY TopoTools'),
+              'version': version
+          })
+
+          ET.SubElement(plugin, 'description').text = metadata.get('description', '')
+          ET.SubElement(plugin, 'about').text = metadata.get('about', '')
+          ET.SubElement(plugin, 'version').text = version
+          ET.SubElement(plugin, 'qgis_minimum_version').text = metadata.get('qgisMinimumVersion', '3.16')
+          ET.SubElement(plugin, 'homepage').text = metadata.get('homepage', '')
+          ET.SubElement(plugin, 'file_name').text = f'elfadily_topotools.{version}.zip'
+          ET.SubElement(plugin, 'icon').text = metadata.get('icon', 'icons/main_icon.png')
+          ET.SubElement(plugin, 'author_name').text = metadata.get('author', '')
+          ET.SubElement(plugin, 'download_url').text = f'https://github.com/{repo_owner}/{repo_name}/releases/download/{tag}/elfadily_topotools.{version}.zip'
+          ET.SubElement(plugin, 'uploaded_by').text = metadata.get('author', '')
+          ET.SubElement(plugin, 'create_date').text = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+          ET.SubElement(plugin, 'update_date').text = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+          ET.SubElement(plugin, 'experimental').text = metadata.get('experimental', 'False').lower()
+          ET.SubElement(plugin, 'deprecated').text = metadata.get('deprecated', 'False').lower()
+          ET.SubElement(plugin, 'tracker').text = metadata.get('tracker', '')
+          ET.SubElement(plugin, 'repository').text = repo
+          ET.SubElement(plugin, 'tags').text = metadata.get('tags', '')
+          ET.SubElement(plugin, 'category').text = metadata.get('category', 'Vector')
+          ET.SubElement(plugin, 'plugin_id').text = '1'  # Internal ID
+
+          # Pretty print XML
+          xml_str = minidom.parseString(ET.tostring(root, encoding='utf-8')).toprettyxml(indent='  ')
+
+          # Write to file
+          with open('plugins.xml', 'w', encoding='utf-8') as f:
+              f.write(xml_str)
+
+          print(f"✅ Generated plugins.xml for version {version}")
+          EOF
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+          TAG: ${{ steps.get_version.outputs.tag }}
+
+      - name: Update GitHub Gist
+        run: |
+          # Read the XML content
+          XML_CONTENT=$(cat plugins.xml)
+
+          # Check if GIST_ID is set
+          if [ -z "${{ secrets.GIST_ID }}" ]; then
+            echo "⚠️ GIST_ID not set. Creating new gist..."
+
+            # Create new gist
+            RESPONSE=$(curl -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/gists \
+              -d @- << EOF
+          {
+            "description": "ELFADILY TopoTools - QGIS Plugin Repository",
+            "public": true,
+            "files": {
+              "plugins.xml": {
+                "content": $(jq -Rs . < plugins.xml)
+              }
+            }
+          }
+          EOF
+            )
+
+            GIST_ID=$(echo "$RESPONSE" | jq -r '.id')
+            GIST_URL=$(echo "$RESPONSE" | jq -r '.html_url')
+            RAW_URL="https://gist.githubusercontent.com/fadili97/${GIST_ID}/raw/plugins.xml"
+
+            echo "✅ Gist créé avec succès!"
+            echo "📝 Gist ID: $GIST_ID"
+            echo "🔗 URL: $GIST_URL"
+            echo "📡 URL XML pour QGIS: $RAW_URL"
+            echo ""
+            echo "⚠️ IMPORTANT: Ajoutez ce secret dans GitHub:"
+            echo "Settings → Secrets → Actions → New repository secret"
+            echo "Name: GIST_ID"
+            echo "Value: $GIST_ID"
+
+          else
+            echo "Updating existing gist: ${{ secrets.GIST_ID }}"
+
+            # Update existing gist
+            curl -X PATCH \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/gists/${{ secrets.GIST_ID }} \
+              -d @- << EOF
+          {
+            "files": {
+              "plugins.xml": {
+                "content": $(jq -Rs . < plugins.xml)
+              }
+            }
+          }
+          EOF
+
+            echo "✅ Gist mis à jour avec succès!"
+            echo "📡 URL XML: https://gist.githubusercontent.com/fadili97/${{ secrets.GIST_ID }}/raw/plugins.xml"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
