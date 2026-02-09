@@ -2,19 +2,23 @@
 name=ELFADILY TopoTools
 qgisMinimumVersion=3.16
 description=Suite d'outils topographiques pour bureaux d'études
-version=1.0.1
+version=1.0.2
 author=ELFADILY GEOCONSEIL
 email=contact@elfadilygeoconseil.com
-about=Plugin QGIS modulaire pour les bureaux d'études topographiques. Inclut : capture satellite, import de points, création de shapefiles, et plus encore.
+about=Plugin QGIS modulaire pour les bureaux d'études topographiques. Inclut : capture satellite, import de points, création de shapefiles, génération de QR codes de localisation Google Maps, et plus encore.
 tracker=https://github.com/fadili97/topotools/issues
 repository=https://github.com/fadili97/topotools
-tags=topography, surveying, shapefile, satellite, morocco, topo
+tags=topography, surveying, shapefile, satellite, morocco, topo, qrcode, location, google maps
 homepage=https://elfadily-geoconseil.ma
 category=Vector
 icon=icons/main_icon.png
 experimental=False
 deprecated=False
 changelog=
+    1.0.2 - Nouveau module QR Code
+    - Module QR Code Localisation : cliquer sur la carte pour générer un QR code Google Maps
+    - Taille du QR code paramétrable
+    - Export en PNG
     1.0.0 - Version initiale
     - Module Situation Satellite
     - Module Import Points → Polygone/Polyligne

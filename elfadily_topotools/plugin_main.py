@@ -14,7 +14,7 @@ class ElfadilyTopoTools:
     """Plugin principal - conteneur pour tous les modules."""
 
     PLUGIN_NAME = "ELFADILY TopoTools"
-    VERSION = "1.0.0"
+    VERSION = "1.0.2"
 
     def __init__(self, iface):
         self.iface = iface
@@ -38,6 +38,7 @@ class ElfadilyTopoTools:
         self._register_module("modules.situation_sat", "SituationSatModule")
         self._register_module("modules.points_to_geometry", "PointsToGeometryModule")
         self._register_module("modules.shapefile_creator", "ShapefileCreatorModule")
+        self._register_module("modules.qr_location", "QRLocationModule")
         # --- Ajouter vos futurs modules ici ---
         # self._register_module("modules.profil_en_long", "ProfilEnLongModule")
         # self._register_module("modules.calcul_surfaces", "CalculSurfacesModule")

@@ -35,6 +35,14 @@ Plugin QGIS modulaire pour les bureaux d'études topographiques.
 - Templates prédéfinis: Parcelle, Borne, Voirie, Réseau, Bâtiment
 - Sauvegarde de modèles personnalisés
 
+### 🗺️ QR Code Localisation
+- Cliquer sur la carte pour générer un QR code Google Maps
+- Transformation automatique des coordonnées vers WGS84
+- Taille du QR code paramétrable (100-1000 px)
+- Export en PNG
+- Copie du lien Google Maps dans le presse-papier
+- **Aucune dépendance** : utilise une API en ligne gratuite
+
 ## 🚀 Développement
 
 ### Créer une nouvelle version
